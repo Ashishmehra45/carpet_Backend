@@ -136,6 +136,24 @@ app.post('/api/applications', (req, res, next) => {
   }
 });
 
+// --- GET ALL APPLICATIONS API ---
+app.get('/api/applications', async (req, res) => {
+  try {
+    // Database se saari applications nikal lo
+    const applications = await Application.find().sort({ createdAt: -1 }); 
+    
+    // JSON response bhej do
+    res.status(200).json({
+      success: true,
+      count: applications.length,
+      data: applications
+    });
+  } catch (error) {
+    console.error("Fetch Error: ", error);
+    res.status(500).json({ success: false, message: "Error fetching data from server" });
+  }
+});
+
 // Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
