@@ -15,6 +15,8 @@ const applicationSchema = new mongoose.Schema({
   workingProcess: { type: String, required: true },
   valueAddedProducts: { type: String },
   socialMediaOrGI: { type: String },
+  isExporting: { type: String },
+exportCountries: { type: String },
 
   // Step 3: Checkboxes (Arrays)
   companyDocumentsAvailable: [{ type: String }],

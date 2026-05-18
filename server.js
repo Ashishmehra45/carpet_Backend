@@ -82,6 +82,9 @@ app.post('/api/applications', (req, res, next) => {
       exportSituation: data.exportSituation,
       productionCapacity: data.productionCapacity,
       employees: data.employees,
+      // Nayi fields yahan map ho gayi
+      isExporting: data.isExporting,
+      exportCountries: data.exportCountries,
       workingProcess: data.workingProcess,
       valueAddedProducts: data.valueAddedProducts,
       socialMediaOrGI: data.socialMediaOrGI,
