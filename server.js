@@ -6,6 +6,7 @@ const multer = require('multer');
 const Application = require('./models/Application');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const Contact = require('./models/Contact');
 
 dotenv.config();
 
@@ -115,6 +116,45 @@ app.get('/api/applications', async (req, res) => {
     res.status(200).json({ success: true, count: applications.length, data: applications });
   } catch (error) {
     res.status(500).json({ success: false, message: "Error fetching data" });
+  }
+});
+
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { name, email, subject, number, message } = req.body;
+
+    // Basic Validation
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please fill all the required fields.' 
+      });
+    }
+
+    // New lead/query creation
+    const newQuery = new Contact({
+      name,
+      email,
+      subject,
+      number,
+      message
+    });
+
+    // Database me save karein
+    await newQuery.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Query submitted successfully! We will get back to you soon.',
+      data: newQuery
+    });
+
+  } catch (error) {
+    console.error('Backend Contact Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal Server Error. Please try again later.'
+    });
   }
 });
 
