@@ -3,54 +3,44 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const Application = require('./models/Application');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 dotenv.config();
 
 const app = express();
-// CORS Configuration
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-      "https://carpet-website-sigma.vercel.app",
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    credentials: true,
-  })
-);
+
+app.use(cors({
+  origin: ["http://localhost:5173", "https://carpet-website-sigma.vercel.app"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// 1. Cloudinary Config (Hamesha .env use karein)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-// Create uploads folder if it doesn't exist
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// Multer Setup for File Storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+// 2. Cloudinary Storage Engine
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'carpet_accelerator',
+    resource_type: 'auto',
+    public_id: (req, file) => `${file.fieldname}-${Date.now()}`,
   },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
 });
 
 const upload = multer({ 
   storage: storage,
-  // Limit ko 10MB se badhakar 50MB kar diya gaya hai
-  limits: { fileSize: 50 * 1024 * 1024 } 
+  limits: { fileSize: 50 * 1024 * 1024 }
 });
 
-// Define fields expected from frontend
 const fileFields = upload.fields([
   { name: 'aadharCard', maxCount: 1 },
   { name: 'panCard', maxCount: 1 },
@@ -60,28 +50,14 @@ const fileFields = upload.fields([
   { name: 'otherDocs', maxCount: 1 }
 ]);
 
-// DB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected Successfully!"))
   .catch(err => console.log("MongoDB Connection Error: ", err));
 
 // --- API ROUTE ---
-// --- API ROUTE WITH MULTER ERROR HANDLING ---
 app.post('/api/applications', (req, res, next) => {
-  // Pehle multer middleware run karo error pakadne ke liye
   fileFields(req, res, function (err) {
-    if (err instanceof multer.MulterError) {
-      // Agar file size limit se zyada hai
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ success: false, message: "Error: File size is too large! Maximum allowed size is 50MB." });
-      }
-      return res.status(400).json({ success: false, message: `Upload Error: ${err.message}` });
-    } else if (err) {
-      // Koi unknown error aayi toh
-      return res.status(500).json({ success: false, message: err.message });
-    }
-    
-    // Agar sab theek hai, toh aage bado
+    if (err) return res.status(400).json({ success: false, message: err.message });
     next();
   });
 }, async (req, res) => {
@@ -89,12 +65,11 @@ app.post('/api/applications', (req, res, next) => {
     const data = req.body;
     const files = req.files;
 
-    // Helper to get file path if it exists
-    const getFilePath = (fieldName) => {
-      return files && files[fieldName] ? `/uploads/${files[fieldName][0].filename}` : null;
+    // Cloudinary se milne wala secure_url save karenge
+    const getFileUrl = (fieldName) => {
+      return files && files[fieldName] ? files[fieldName][0].path : null;
     };
 
-    // Parsing arrays (Frontend sends them as stringified JSON in FormData)
     const parsedDocs = data.companyDocumentsAvailable ? JSON.parse(data.companyDocumentsAvailable) : [];
     const parsedNeeds = data.trainingNeeds ? JSON.parse(data.trainingNeeds) : [];
 
@@ -113,49 +88,32 @@ app.post('/api/applications', (req, res, next) => {
       companyDocumentsAvailable: parsedDocs,
       trainingNeeds: parsedNeeds,
       files: {
-        aadharCard: getFilePath('aadharCard'),
-        panCard: getFilePath('panCard'),
-        productsImage: getFilePath('productsImage'),
-        brochure: getFilePath('brochure'),
-        socialMediaImage: getFilePath('socialMediaImage'),
-        otherDocs: getFilePath('otherDocs'),
+        aadharCard: getFileUrl('aadharCard'),
+        panCard: getFileUrl('panCard'),
+        productsImage: getFileUrl('productsImage'),
+        brochure: getFileUrl('brochure'),
+        socialMediaImage: getFileUrl('socialMediaImage'),
+        otherDocs: getFileUrl('otherDocs'),
       }
     });
 
     await newApplication.save();
-
-    res.status(201).json({ 
-      success: true, 
-      message: "Application submitted successfully!",
-      applicationId: newApplication._id
-    });
+    res.status(201).json({ success: true, message: "Application submitted successfully!" });
 
   } catch (error) {
     console.error("Submission Error: ", error);
-    res.status(500).json({ success: false, message: "Server error while saving data", error: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// --- GET ALL APPLICATIONS API ---
 app.get('/api/applications', async (req, res) => {
   try {
-    // Database se saari applications nikal lo
     const applications = await Application.find().sort({ createdAt: -1 }); 
-    
-    // JSON response bhej do
-    res.status(200).json({
-      success: true,
-      count: applications.length,
-      data: applications
-    });
+    res.status(200).json({ success: true, count: applications.length, data: applications });
   } catch (error) {
-    console.error("Fetch Error: ", error);
-    res.status(500).json({ success: false, message: "Error fetching data from server" });
+    res.status(500).json({ success: false, message: "Error fetching data" });
   }
 });
 
-// Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
