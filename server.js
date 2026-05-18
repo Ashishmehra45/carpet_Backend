@@ -11,11 +11,16 @@ dotenv.config();
 
 const app = express();
 // CORS Configuration
-app.use(cors({
-  origin: 'http://localhost:5173', // Aapke React (Vite) frontend ka exact URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Jo methods allow karne hain
-  credentials: true // Agar aage chalkar cookies ya tokens use karne ho
-}));
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://carpet-website-sigma.vercel.app",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
