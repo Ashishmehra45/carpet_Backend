@@ -40,7 +40,7 @@ const storage = new CloudinaryStorage({
     return {
       folder: "carpet_accelerator",
       resource_type: isPdf ? "raw" : "image",
-      allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
+      allowed_formats: ['jpg', 'jpeg', 'png', 'webp','pdf'],
       public_id: `${file.fieldname}-${Date.now()}`,
     };
   },
